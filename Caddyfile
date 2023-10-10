@@ -1,0 +1,22 @@
+{
+    acme_dns route53 {
+     access_key_id "<#HERE replace here >"
+     secret_access_key "<#HERE replace here >"
+    }
+}
+
+overseerr.<#HERE replace your custom domain here >.com {
+    reverse_proxy http://<#HERE replace here your server local ip>:5055
+}
+
+plex.<#HERE replace your custom domain here >.com {
+    reverse_proxy http://<#HERE replace here your server local ip>:32400
+}
+
+docker.<#HERE replace your custom domain here >.com {
+    reverse_proxy http://<#HERE replace here your server local ip>:8080
+}
+
+tautulli.<#HERE replace your custom domain here >.com {
+    reverse_proxy http://<#HERE replace here your server local ip>:8181
+}

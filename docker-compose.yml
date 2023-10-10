@@ -1,0 +1,117 @@
+version: "3.4"
+
+x-common-env: &common-env
+  environment:
+    - TZ=America/New_York #HERE Modify to your local timezone https://en.wikipedia.org/wiki/List_of_tz_database_time_zones
+
+services:
+  plex:
+    <<: *common-env
+    container_name: plex
+    image: plexinc/pms-docker:latest
+    restart: unless-stopped
+    ports:
+      # https://support.plex.tv/articles/201543147-what-network-ports-do-i-need-to-allow-through-my-firewall/
+      - "32400:32400/tcp"
+      # - 3005:3005/tcp # Plex companion
+      # - 8324:8324/tcp # (controlling Plex for Roku via Plex Companion)
+      # - 32569:32469/tcp #DLNA
+      # - 1900:1900/udp #DLNA
+      # - 32410:32410/udp #GDM network discovery
+      # - 32412:32412/udp #GDM network discovery
+      # - 32413:32413/udp #GDM network discovery
+      # - 32414:32414/udp #GDM network discovery
+    environment:
+      - PLEX_UID=1032
+      - PLEX_GID=100
+      - PLEX_CLAIM=<#HERE fill in> #Get from https://www.plex.tv/claim/
+      - 'ADVERTISE_IP=http://<#HERE replace here your server local ip>:32400/,http://plex.<#HERE replace your custom domain here >.com/,https://plex.<#HERE replace your custom domain here >.com/'
+    hostname: plex-docker
+    volumes:
+      - /docker/volumes/plex/config:/config
+      - /docker/volumes/plex/transcode:/transcode
+      - /docker/volumes/plex/mounts:/mounts
+    devices:
+      - /dev/dri:/dev/dri # hardware acceleration
+
+  #HERE Optional
+  #ddns-route53:
+  #  <<: *common-env
+  #  image: crazymax/ddns-route53:latest
+  #  container_name: ddns-route53
+  #  environment:
+  #    - SCHEDULE=*/30 * * * *
+  #    - LOG_LEVEL=info
+  #    - LOG_JSON=false
+  #    - DDNSR53_CREDENTIALS_ACCESSKEYID=<#HERE fill in>
+  #    - DDNSR53_CREDENTIALS_SECRETACCESSKEY=<#HERE fill in>
+  #    - DDNSR53_ROUTE53_HOSTEDZONEID=<#HERE fill in>
+  #    - DDNSR53_ROUTE53_RECORDSSET_0_NAME=<#HERE fill in with your public ip domain name>.
+  #    - DDNSR53_ROUTE53_RECORDSSET_0_TYPE=A
+  #    - DDNSR53_ROUTE53_RECORDSSET_0_TTL=300
+  #  restart: always
+
+  overseerr:
+    <<: *common-env
+    image: linuxserver/overseerr
+    container_name: overseerr
+    environment:
+      - PUID=1026
+      - PGID=100
+    volumes:
+      - /docker/volumes/overseerr/config:/config
+    ports:
+      - "5055:5055"
+    restart: unless-stopped
+
+  #HERE Optional, for reverse proxy with custom domain
+  #caddy:
+  #  <<: *common-env
+  #  container_name: caddy
+  #  build:
+  #    context: .
+  #    dockerfile: caddy.Dockerfile
+  #  ports:
+  #    - "80:80"
+  #    - "443:443"
+  #  restart: unless-stopped
+
+  docker-stats:
+    <<: *common-env
+    image: virtualzone/docker-container-stats
+    container_name: docker-stats
+    restart: unless-stopped
+    ports:
+      - '8080:8080'
+    environment:
+      - STATS_UPDATE_INTERVAL=120 #every two minutes
+    volumes:
+      - '/var/run/docker.sock:/var/run/docker.sock:ro'
+      - '/docker/volumes/docker-stats/db:/opt/docker-stats/db'
+    networks:
+      - docker-stats-network
+
+  tautulli:
+    <<: *common-env
+    image: ghcr.io/tautulli/tautulli
+    container_name: tautulli
+    restart: unless-stopped
+    volumes:
+      - /docker/volumes/tautulli/config:/config
+    ports:
+      - "8181:8181"
+
+  watchtower:
+    <<: *common-env
+    image: containrrr/watchtower
+    container_name: watchtower
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    #environment:
+      #- WATCHTOWER_NOTIFICATIONS=slack
+      #- WATCHTOWER_NOTIFICATION_SLACK_HOOK_URL=<#HERE optional slack channel notification>
+    command: plex overseerr docker-stats netdata tautulli #HERE modify as needed, do not add caddy
+
+networks:
+  docker-stats-network:
